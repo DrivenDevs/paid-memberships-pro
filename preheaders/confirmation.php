@@ -13,15 +13,32 @@ if ( ! is_user_logged_in() ) {
 	exit;
 }
 
+$mylevels = pmpro_getMembershipLevelsForUser();
+$level_is_expiring = false;
+
+foreach ($mylevels as $mylevel) {
+    if (pmpro_isLevelExpiringSoon( $mylevel )) {
+        $level_is_expiring = true;
+        break;
+    }
+}
+
+if( pmpro_getGateway() === "stripecheckout" ) {
+    if((pmpro_hasMembershipLevel() && $level_is_expiring) || !pmpro_hasMembershipLevel()) {
+        PMProGateway_stripecheckout::pmpro_checkout_after_stripecheckout_session($_REQUEST['id'], $current_user->ID);
+    }
+}
+
 // Get the membership level for the current user.
 if ( $current_user->ID ) {
 	$current_user->membership_level = pmpro_getMembershipLevelForUser($current_user->ID);
 }
 
+
 /*
-	Use the filter to add your gateway here if you want to show them a message on the confirmation page while their checkout is pending.
-	For example, when PayPal Standard is used, we need to wait for PayPal to send a message through IPN that the payment was accepted.
-	In the meantime, the order is in pending status and the confirmation page shows a message RE waiting.
+Use the filter to add your gateway here if you want to show them a message on the confirmation page while their checkout is pending.
+For example, when PayPal Standard is used, we need to wait for PayPal to send a message through IPN that the payment was accepted.
+In the meantime, the order is in pending status and the confirmation page shows a message RE waiting.
 */
 $gateways_with_pending_status = apply_filters('pmpro_gateways_with_pending_status', array('paypalstandard', 'twocheckout', 'gourl'));
 if ( ! pmpro_hasMembershipLevel() && ! in_array( pmpro_getGateway(), $gateways_with_pending_status ) ) {
@@ -30,6 +47,7 @@ if ( ! pmpro_hasMembershipLevel() && ! in_array( pmpro_getGateway(), $gateways_w
     wp_redirect( $redirect_url );
     exit;
 }
+
 
 // If membership is a paying one, get invoice from DB
 if ( ! empty( $current_user->membership_level ) && ! pmpro_isLevelFree( $current_user->membership_level ) ) {

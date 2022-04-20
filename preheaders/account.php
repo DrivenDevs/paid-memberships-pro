@@ -15,6 +15,7 @@ if( $current_user->ID ) {
     $current_user->membership_level = pmpro_getMembershipLevelForUser( $current_user->ID );
 }
 
+
 // Process the msg param.
 if ( isset($_REQUEST['msg'] ) ) {
     if ( $_REQUEST['msg'] == 1 ) {

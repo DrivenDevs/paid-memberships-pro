@@ -850,7 +850,13 @@
 			
 			if(!$user)
 				return false;
-			
+
+            if($user->membership_level->id) {
+                $link_payment = pmpro_url("checkout", "?level=" . $user->membership_level->id);
+            } else {
+                $link_payment = pmpro_url("levels");
+            }
+
 			//make sure we have the current membership level data
 			/*$user->membership_level = $wpdb->get_row("SELECT l.id AS ID, l.name AS name, UNIX_TIMESTAMP(CONVERT_TZ(mu.enddate, '+00:00', @@global.time_zone)) as enddate
 														FROM {$wpdb->pmpro_membership_levels} AS l
@@ -862,7 +868,7 @@
 			$this->email = $user->user_email;
 			$this->subject = sprintf(__("Your membership at %s will end soon", "paid-memberships-pro"), get_option("blogname"));
 
-			$this->data = array("subject" => $this->subject, "name" => $user->display_name, "user_login" => $user->user_login, "sitename" => get_option("blogname"), "membership_id" => $user->membership_level->id, "membership_level_name" => $user->membership_level->name, "siteemail" => pmpro_getOption("from_email"), "login_link" => pmpro_login_url(), "login_url" => pmpro_login_url(), "enddate" => date_i18n(get_option('date_format'), $user->membership_level->enddate), "display_name" => $user->display_name, "user_email" => $user->user_email);
+			$this->data = array("subject" => $this->subject, "name" => $user->display_name, "user_login" => $user->user_login, "sitename" => get_option("blogname"), "membership_id" => $user->membership_level->id, "membership_level_name" => $user->membership_level->name, "siteemail" => pmpro_getOption("from_email"), "login_link" => pmpro_login_url(), "login_url" => pmpro_login_url(), "enddate" => date_i18n(get_option('date_format'), $user->membership_level->enddate), "display_name" => $user->display_name, "user_email" => $user->user_email , "payment_link" => $link_payment);
 
 			$this->template = apply_filters("pmpro_email_template", "membership_expiring", $this);
 

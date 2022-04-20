@@ -359,7 +359,7 @@ if ( empty( $default_gateway ) ) {
 
 	<?php
 		$pmpro_include_payment_information_fields = apply_filters("pmpro_include_payment_information_fields", true);
-		if($pmpro_include_payment_information_fields) { ?>
+		if($pmpro_include_payment_information_fields && $gateway !== "stripecheckout") { ?>
 		<div id="pmpro_payment_information_fields" class="<?php echo pmpro_get_element_class( 'pmpro_checkout', 'pmpro_payment_information_fields' ); ?>" <?php if(!$pmpro_requirebilling || apply_filters("pmpro_hide_payment_information_fields", false) ) { ?>style="display: none;"<?php } ?>>
 			<hr />
 			<h3>
