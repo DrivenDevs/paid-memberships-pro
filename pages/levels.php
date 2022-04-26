@@ -14,6 +14,13 @@ global $wpdb, $pmpro_msg, $pmpro_msgt, $current_user;
 $pmpro_levels = pmpro_sort_levels_by_order( pmpro_getAllLevels(false, true) );
 $pmpro_levels = apply_filters( 'pmpro_levels_array', $pmpro_levels );
 
+if(empty( $pmpro_levels ) ) {
+    ?>
+    <h3><?php _e("No Membership Available", 'paid-memberships-pro' );?></h3>
+    <a href="<?php echo home_url()?>" id="pmpro_levels-return-home"><?php _e('&larr; Return to Home', 'paid-memberships-pro' );?></a>
+    <?php
+}
+else {
 if($pmpro_msg)
 {
 ?>
@@ -33,6 +40,7 @@ if($pmpro_msg)
 	<?php	
 	$count = 0;
 	$has_any_level = false;
+    $actual_level = pmpro_getMembershipLevelForUser($current_user->ID);
 	foreach($pmpro_levels as $level)
 	{
 		$user_level = pmpro_getSpecificMembershipLevelForUser( $current_user->ID, $level->id );
@@ -54,7 +62,14 @@ if($pmpro_msg)
 			?>
 		</td>
 		<td>
-		<?php if ( ! $has_level ) { ?>                	
+            <?php if ( ! $has_level ) {
+            if( !empty($actual_level) && $level->billing_amount < $actual_level->billing_amount ) {
+                ?>
+						<a class="<?php echo pmpro_get_element_class( 'pmpro_btn disabled', 'pmpro_btn' ); ?>" href="<?php echo pmpro_url("account")?>"><?php _e('Select', 'paid-memberships-pro' );?></a>
+				<?php
+                continue;
+            }
+            ?>                	
 			<a class="<?php echo pmpro_get_element_class( 'pmpro_btn pmpro_btn-select', 'pmpro_btn-select' ); ?>" href="<?php echo pmpro_url("checkout", "?level=" . $level->id, "https")?>"><?php _e('Select', 'paid-memberships-pro' );?></a>
 		<?php } else { ?>      
 			<?php
@@ -84,3 +99,5 @@ if($pmpro_msg)
 		<a href="<?php echo home_url()?>" id="pmpro_levels-return-home"><?php _e('&larr; Return to Home', 'paid-memberships-pro' );?></a>
 	<?php } ?>
 </p> <!-- end pmpro_actions_nav -->
+<?php } ?>
+

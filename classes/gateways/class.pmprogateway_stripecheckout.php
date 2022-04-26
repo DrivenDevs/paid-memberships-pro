@@ -267,7 +267,7 @@ class PMProGateway_stripecheckout extends PMProGateway
         $morder->user_id = $user_id;
         $morder->saveOrder();
 
-        $morder->Gateway->sendToStripe($morder);
+        $morder->Gateway->sendToStripe($morder, $user_id);
     }
 
 
@@ -276,21 +276,110 @@ class PMProGateway_stripecheckout extends PMProGateway
      *
      * @param \MemberOrder $order
      */
-    function sendToStripe($order)
+    function sendToStripe($order, $user_id)
     {
         //load Stripe library if it hasn't been loaded already (usually by another plugin using Stripe)
         if (!class_exists("Stripe\Stripe")) {
             require_once(PMPRO_DIR . "/stripe-php/init.php");
         }
-
+        
         //set api key
         $stripe = new \Stripe\StripeClient(pmpro_getOption("stripecheckout_secretkey"));
 
         //List of subscriptions plan stripe IDs
-        $products = $stripe->products->all(["active" => true]);
+        $products = $stripe->products->all();
 
         // Get level selected for purchase
         $level_select = pmpro_getLevelAtCheckout();
+
+        //Check if there is an active membership, to make an update
+        $actual_level = pmpro_getMembershipLevelForUser($user_id);
+        
+        if(!empty($actual_level) && !pmpro_isLevelExpiringSoon( $actual_level ))
+        {
+            $product_update;
+
+            // We are looking for the membership upgrade product
+            foreach ($products as $product) {
+                if ($product->name == 'MembershipUpdate') {
+                    $product_update = $product;
+                    break;
+                }
+            }
+
+            // If not found, create it
+            if (empty($product_update)){
+                // create product 
+                $product_update = $stripe->products->create([
+                    'name' => 'MembershipUpdate',
+                ]);
+                
+                // create price for product
+                $price = $stripe->prices->create([
+                    'unit_amount' => (pmpro_round_price($level_select->billing_amount) - $actual_level->billing_amount) * 100,
+                    'currency' => 'usd',
+                    'product' => $product_update->id,
+                ]);
+                
+                // add price at product created
+                $stripe->products->update(
+                    $product_update->id,
+                    ['metadata' => ['membership_price' => $price->id]]
+                );
+            }
+
+            // Active product in Stripe
+            $stripe->products->update(
+                $product_update->id,
+                ['active' => true]
+            );
+            
+            // Desactivate the actual membership_price
+            if(! empty( $product_update['metadata']->membership_price))
+            {
+            $stripe->prices->update(
+                $product_update['metadata']->membership_price,
+                ['active' => false]
+            );
+            }
+
+            // create new price for product
+            $new_price = $stripe->prices->create([
+                'unit_amount' => (pmpro_round_price($level_select->billing_amount) - $actual_level->billing_amount) * 100,
+                'currency' => 'usd',
+                'product' => $product_update->id,
+            ]);
+
+            // add price at product created
+            $product_update = $stripe->products->update(
+                $product_update->id,
+                ['metadata' => ['membership_price' => $new_price->id]]
+            );
+            
+            $res = $stripe->checkout->sessions->create([
+                'success_url' => get_permalink(get_option( 'pmpro_confirmation_page_id' )) . '/?id={CHECKOUT_SESSION_ID}&level=' . $level_select->id,
+                'cancel_url' => get_permalink(get_option( 'pmpro_cancel_page_id' )),
+                'line_items' => [
+                    [
+                        'price' => $product_update['metadata']->membership_price,
+                        'quantity' => 1,
+                    ],
+                ],
+                'mode' => 'payment',
+            ]);
+            
+            // Desactive product in Stripe
+            $stripe->products->update(
+                $product_update->id,
+                ['active' => false]
+            );
+
+            $order->payment_transaction_id = $res->payment_intent;
+            $order->saveOrder();
+            wp_redirect($res->url);
+            exit;
+        }
+
 
         foreach ($products as $product) {
             if ($level_select->id == $product['metadata']->membership_id) {
@@ -299,7 +388,6 @@ class PMProGateway_stripecheckout extends PMProGateway
             }
         }
 
-        $dir = home_url();
         $res = $stripe->checkout->sessions->create([
             'success_url' => get_permalink(get_option( 'pmpro_confirmation_page_id' )) . '/?id={CHECKOUT_SESSION_ID}&level=' . $level_select->id,
             'cancel_url' => get_permalink(get_option( 'pmpro_cancel_page_id' )),
@@ -358,45 +446,24 @@ class PMProGateway_stripecheckout extends PMProGateway
     {
         $stripe = new \Stripe\StripeClient(pmpro_getOption("stripecheckout_secretkey"));
         $session = $stripe->checkout->sessions->retrieve($id);
-
+        
         $order = new MemberOrder();
         $order->getLastMemberOrder($user_id, "review");
-        //clean up a couple values
-        $order->payment_transaction_id = $session['payment_intent'];
-        // Check if the payment was immediate
-        if ($session['payment_status'] === "paid") {
-            $order->status = "success";
-            pmpro_changeMembershipLevel($order->membership_id, $user_id);
+        if(!empty($order->membership_id))
+        {
+            //clean up a couple values
+            $order->payment_transaction_id = $session['payment_intent'];
+            // Check if the payment was immediate
+            if ($session['payment_status'] === "paid") {
+                $order->status = "success";
+                pmpro_changeMembershipLevel($order->membership_id, $user_id);
+            }
+            $order->saveOrder();
         }
 
-        $order->saveOrder();
-
         return true;
     }
 
-
-    /**
-     * Process checkout.
-     *
-     * @param SessionIdStripe $order
-     *
-     * @return bool
-     */
-    static function pmpro_stripecheckout_cancel_subscription($user_id)
-    {
-        $stripe = new \Stripe\StripeClient(
-            pmpro_getOption("stripecheckout_secretkey")
-        );
-        // Get last order
-        $order = new MemberOrder();
-        $order->getLastMemberOrder();
-        
-        $stripe->subscriptions->cancel(
-            $order->subscription_transaction_id,
-            []
-        );
-        return true;
-    }
 
     /**
      * This function is used to save the parameters returned after successfull connection of Stripe account.

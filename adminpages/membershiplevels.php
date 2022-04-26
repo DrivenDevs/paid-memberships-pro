@@ -202,6 +202,7 @@
                 'product' => $product->id,
             ]);
 
+            // add price at product created
             $stripe->products->update(
                 $product->id,
                 ['metadata' => ['membership_id' => $level->id, 'membership_price' => $price->id]]
@@ -269,6 +270,28 @@
 			if($r1 !== FALSE && $r2 !== FALSE && $r3 !== FALSE) {
 				$msg = 3;
 				$msgt = __("Membership level deleted successfully.", 'paid-memberships-pro' );
+                 // create stripe product for membership
+                if ($gateway == "stripecheckout") {
+                    //get level object from db
+                    if (!class_exists("Stripe\Stripe")) {
+                        require_once(PMPRO_DIR . "/includes/lib/Stripe/init.php");
+                    }
+                    $stripe = new \Stripe\StripeClient(pmpro_getOption("stripecheckout_secretkey"));
+
+                    $products = $stripe->products->all(["active" => true]);
+
+                    foreach ($products as $product) {
+                        if ($ml_id == $product['metadata']->membership_id) {
+                            $stripe_plan = $product;
+                            break;
+                        }
+                    }
+
+                    $stripe->products->update(
+                        $stripe_plan->id,
+                        ['metadata' => "", 'active' => false]
+                    );
+                }
 			} else {
 				$msg = -3;
 				$msgt = __("Error deleting membership level.", 'paid-memberships-pro' );

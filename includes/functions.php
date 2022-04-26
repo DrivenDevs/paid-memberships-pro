@@ -1094,7 +1094,6 @@ function pmpro_changeMembershipLevel( $level, $user_id = null, $old_level_status
 
 			if ( ! $wpdb->query( $sql ) ) {
 				$pmpro_error = __( 'Error interacting with database', 'paid-memberships-pro' ) . ': ' . ( $wpdb->last_error ? $wpdb->last_error : 'unavailable' );
-
 				return false;
 			}
 		}
@@ -1162,7 +1161,12 @@ function pmpro_changeMembershipLevel( $level, $user_id = null, $old_level_status
 
             $now = current_time('mysql');
 
+            if(!empty ($user_temp) && $user_temp->membership_id == $level_obj['id'])
+            {
             $previous_enddate = date("Y-m-d 23:59:59", strtotime($user_temp->stardate . $level_obj['cycle_number'] . " " . $level_obj['cycle_period']));
+            } else {
+                $previous_enddate ='2000-01-01 23:59:59';
+            }
 
             $sql = $wpdb->prepare(
                 "
